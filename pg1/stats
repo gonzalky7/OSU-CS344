@@ -1,0 +1,205 @@
+#!/bin/bash
+function echoFormat {
+	echo "$0 {-rows|-cols} [file]" 1>&2
+}
+
+
+##########################
+#
+#  datafilepath="datafile$$"
+#     if [ "$#" = "1" ] 
+#      then
+#        cat > "$datafilepath"
+#         elif [ "$#" = "2" ]
+#         then
+#          datafilepath=$2
+#     fi
+############################
+
+ 
+
+#Checking for correct input
+
+datafilepath="datafile$$"
+#using if elseif statement to verify correct number of arguments passed
+#$# returns number of arguments
+if [[ $# == 1 ]] 
+then
+	cat > $datafilepath #concatenate file into datafilepath
+
+elif [[ $# == 2 ]] #check 2 arguments stats test_file && -r/-c
+then
+	datafilepath=$2 #puts argument $2 into datafilepath
+
+else
+	echoFormat
+	exit 1
+fi
+
+
+if [[ ( ! -e $datafilepath ) || ( ! -r $datafilepath) ]]; #-e check file exits, -r read permission
+ then
+	echo "$0: cannot read $datafilepath" 1>&2
+	exit 1
+fi
+
+tempColFile="tempcolfile$$"
+tempColAv="tempColAv$$"
+tempColMed="tempColMed$$"
+
+
+trap "rm -f *$$; exit 1" INT HUP TERM
+
+#--------------------
+#Calculation rows
+#
+#--------------------
+
+
+if [[ $1 == -r* ]];
+then
+	echo -e "Average\t Median"
+
+    	
+while read myLine
+	do
+		sum=0
+		average=0
+		count=0
+
+		
+
+	for i in $myLine
+	do
+		num=$i
+		count=`expr $count + 1`
+		sum=`expr $sum + $num`
+		#echo "count: $count"
+	done
+	
+
+
+	# using (a + (b/2)) / b given in program 1 explanation
+	
+	average=$((($sum + ($count / 2)) / $count))
+	
+	#echo variable myLine piping and then tr = turning all " " into "\n" 
+	# sort -n sorts numerically
+	#https://ss64.com/bash/sort.html
+	sortedLine=($(echo $myLine | tr " " "\n" | sort -n))
+
+
+	#debugging
+	#echo "Sorted Line: $sortedLine"
+
+	#debugging
+	#echo "Count: $count"
+	
+	#reference https://cs.fit.edu/~mmahoney/cse4001/median.bash.txt
+	#here we are checking how many numbers are in each row
+	#if even increase count by one then then divide by 2, second largest middle number
+	# 1 2 3 4 5 6 count=6 ->count=7 ->7/2
+	# 1 2 3 4 5 6 7 count=7-> 7/2
+
+	
+		if [[ $(( $count % 2 )) == 0 ]] 
+		then
+			median=${sortedLine[ $(( ($count + 1 ) / 2 )) ]}
+		else
+			median=${sortedLine[ $(( $count / 2 ))]}
+		fi	
+
+		echo -e  "$average\t$median"
+
+done<$datafilepath #file being read is at bottom
+
+
+#-------------------
+#calculating columns
+#
+#-------------------
+
+
+
+elif [[ $1 == -c* ]];
+then
+   #echo "calculating column stats";
+
+	pos=1
+
+        while read myLine
+        do
+               
+	#reference https://unix.stackexchange.com/questions/341407/how-to-find-length-of-string-using-echo-and-wc-command
+	#gets the length of string 
+	count=`echo $myLine | wc -w`
+	
+
+#tried not to use temp files, but had no choice here. 
+#While pos first item less equal than count length of string do loop
+
+		while [ $pos -le $count ]
+        	   do
+			#-f is for field instead of -c which was for character
+			#transfering all \n into \t create colums
+                	cut -f $pos $datafilepath | tr '\n' '\t' >> $tempColFile
+                	pos=`expr $pos + 1`	#incr by one to next column
+                	printf "\n" >> $tempColFile
+               	 done
+        done<$datafilepath
+
+
+#------now have a temp file, calculating average median
+
+
+while read myLine
+	do
+		sum=0
+		average=0
+		count=`echo $myLine | wc -w`
+
+	for i in $myLine
+	do	
+		num=$i
+		#echo "COUnt:$count"
+		#echo "Num: $num"
+		#echo "Sum: $sum"
+		sum=`expr $sum + $num`
+	done
+
+	
+	average=$((($sum + ($count / 2)) / $count))
+
+        sortedLine=($(echo $myLine | tr " " "\n" | sort -n))
+
+        #reference https://cs.fit.edu/~mmahoney/cse4001/median.bash.txt
+                if [[ $(( $count % 2 )) == 0 ]]
+                then
+                    	median=${sortedLine[ $(( (count + 1 ) / 2 )) ]}
+                else
+                    	median=${sortedLine[ $(( $count / 2 ))]}
+                fi
+
+		#appending results into temporary file only way to print out with the output format wanted
+               	printf  "$average\t" >> $tempColAv
+		#echo -e  "Median:\n$median"
+		printf  "$median\t" >> $tempColMed
+
+done<$tempColFile
+	#formatting output. Using printf because echo adds a newline. Had too many newlines
+	echo  "Average:"
+	printf "\n" >> $tempColAv
+	cat $tempColAv
+
+	echo "Median:"
+	printf "\n" >> $tempColMed
+	cat $tempColMed
+
+
+fi
+
+#Cleaning up files. 
+
+rm -f temp*
+rm -f data*
+exit 0
