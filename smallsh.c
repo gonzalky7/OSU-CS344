@@ -9,15 +9,21 @@
 
 
 pid_t PID; //this will be for proccess PID array, keeping track of proccesses
-pid_t bgPid;
-int foregroundOnly; //this will be the variable to ignore the & symbol when it is being entered
+pid_t pidToBeKilledWhenCtrlCIsPressed;
+int foregroundOnly; //this will be used to toggle between foreground-only mode, foreground = 0 means fg is normal mode fg = 1 means foreground-only
 
 
 
 void catchSIGINT(int signo) //These functions are both from the lecture
 {
-    char* message = "caught SIGINT\n";
-    write(STDOUT_FILENO, message, 14);
+
+    //char* message = "caught SIGINT\n";
+    //write(STDOUT_FILENO, message, 14);
+ 
+        printf("terminated by signal %i\n", signo);
+        fflush(stdout);
+    kill(pidToBeKilledWhenCtrlCIsPressed, SIGKILL); 
+    
     
 }
 
@@ -25,19 +31,16 @@ void catchSIGINT(int signo) //These functions are both from the lecture
 void catchSIGSTP(int signo)
 {
     // if foregroundOnly is 0 then & is ignored and no background processes are allowed
-    if (foregroundOnly == 0) {
+    if (foregroundOnly == 1) { //foregroundONly == 1 means foreground is on
         char* message = "Entering foreground-only mode (& is now ignored)\n";
         write(STDOUT_FILENO, message, 48);
-        foregroundOnly = 1; //we change it to 1 so the next time ctrl-z is pressed we go back to allowing background processes
+        foregroundOnly = 0; //we change it to 1 so the next time ctrl-z is pressed we go back to allowing background processes
     } else
      {
          char* message = "Exiting foreground-only mode\n";
          write(STDOUT_FILENO, message, 28);
-         foregroundOnly = 0;
-         
+         foregroundOnly = 1;
      }
-    
-    
 }
 
 
@@ -85,10 +88,10 @@ int  main()
     int fdin_save; // For restoring file descriptor later
     int fdout_save;
     char* args[512];
-    int bg = 0;
+    int bg = 0; //this will be used to handle background proccesses bg = 0 means command was not a background process bg = 1 means call was a background process
     int childExitMethod = -5;
     int numCharsEntered = -5;
-    
+    foregroundOnly = 1; //initiliazing to 1 so when ctrl-z is pressed it will go into foreground-only mode
     
     /***************************************************************
      *                       Signal Handling                   *
@@ -134,7 +137,7 @@ int  main()
         
         buffer = (char*)calloc(bufsize,sizeof(char)); //allocating space for input
         destring = (char*)calloc(bufsize,sizeof(char)); //this will be used to get rid of newline character from getline()
-        bg = 0; //reseting the background prcoess signal
+        bg = 0; //reseting the background prcoess signal starting off with 0 which means background process
         
        
             
@@ -255,10 +258,17 @@ int  main()
                                 inputRedirectionFile = tok; // == junk
                               }else if(strcmp(tok, "&") == 0)
                               {
+                                  printf("foregroundONly:%d\n", foregroundOnly);
+                                  
                                   if (foregroundOnly == 0) {
+                                      printf("Inside strcmp & bg = 0 \n");
+                                      printf("bg:%d\n", bg);
                                       bg = 0;
                                   }else{
+                                      printf("Inside strcmp & else bg = 1\n");
+                                     
                                       bg = 1;
+                                       printf("bg:%d\n", bg);
                                   }
                                   
                               }else
@@ -320,7 +330,6 @@ int  main()
                             close(inputFD);
                          }
                     }
-                    
                     if(outputRedirection == 1 ) //this code is taken from the lectures and refactored to take the stdout and write it to file
                      {
                         fdout_save = dup(1);
@@ -345,27 +354,25 @@ int  main()
                     break;
                     
                 default:
+                    //toggle foreground only here variable == !variable
                     if (bg != 1) {
                         PID = getpid();
-                        waitpid(spawnPid, &childExitMethod, 0);
+                        pidToBeKilledWhenCtrlCIsPressed = waitpid(spawnPid, &childExitMethod, 0);
+                        printf("pidToBeKilledWhenCtrlCIsPressed:%d\n" , pidToBeKilledWhenCtrlCIsPressed);
+                        
                         //apersand parent doesn't wait and chid and parent just keep going
                         
                     }else
                     {
                         printf("background pid is %d\n", spawnPid);
-                        spawnPid;
                         break;
                     }
-                    
                      dup2(fdin_save, 0);
                      dup2(fdout_save,1);
 
-                    
                     break;
             }
-        
           }
-        
        /**********************************************
              *        Clean - UP                          *
              *                                            *
