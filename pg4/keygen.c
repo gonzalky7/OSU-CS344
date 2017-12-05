@@ -21,7 +21,6 @@ int main(int argc, const char * argv[]) {
    //https://stackoverflow.com/questions/523237/how-to-read-in-numbers-as-command-arguments 
     keyLength = atoi(argv[1]); 
 
-	printf("keylength:%d\n", keyLength);
    
    int i; 
    char randomLetter;
